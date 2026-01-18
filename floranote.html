@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FloraNote</title>
+<style>
+body{font-family:sans-serif;margin:0;padding:16px;text-align:center;background:#fff6f8;color:#333}
+h1{margin:0 0 10px}
+video{width:100%;max-width:380px;border-radius:12px;background:#000;margin-top:10px}
+button{margin:6px;padding:10px 16px;border:0;border-radius:8px;background:#e91e63;color:#fff;font-weight:600;font-size:15px}
+button.gray{background:#ccc;color:#111}
+.small{font-size:13px;color:#555;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>🌸 FloraNote</h1>
+<p class="small">Scanne ce lien pour enregistrer ou lire un message vidéo. Aucune application requise.</p>
+
+<h2>ID : <span id="noteId"></span></h2>
+<video id="vid" playsinline></video><br>
+<button id="camBtn">🎥 Activer caméra</button>
+<button id="recBtn">⏺️ Enregistrer</button>
+<button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
+<button id="saveBtn" class="gray" disabled>💾 Sauvegarder</button>
+<div class="small" id="info"></div>
+
+<script>
+const EXPIRY=10*60*1000;
+const id=location.hash.slice(1)||'DEMO';
+document.getElementById('noteId').textContent=id;
+const vid=document.getElementById('vid');
+const info=document.getElementById('info');
+const camBtn=document.getElementById('camBtn');
+const recBtn=document.getElementById('recBtn');
+const stopBtn=document.getElementById('stopBtn');
+const saveBtn=document.getElementById('saveBtn');
+let stream,recorder,chunks=[];
+
+function key(i){return'video_'+i;}
+function blobToDataURL(b){return new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b);});}
+
+function startRecorder(){
+ info.textContent="Aucune vidéo pour cette carte. Enregistre un message.";
+ vid.srcObject=null; vid.src=''; vid.controls=false;
+ saveBtn.disabled=true;
+
+ camBtn.onclick=async()=>{
+   try{
+     stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+     vid.srcObject=stream; vid.muted=true; await vid.play();
+     info.textContent="Caméra activée.";
+   }catch(e){alert("Autorise la caméra dans ton navigateur.");}
+ };
+
+ recBtn.onclick=()=>{
+   if(!stream){camBtn.click();setTimeout(()=>recBtn.click(),800);return;}
+   chunks=[];
+   recBtn.disabled=true;stopBtn.disabled=false;
+   recBtn.textContent="Enregistrement...";recBtn.style.background="#aaa";
+   recorder=new MediaRecorder(stream);
+   recorder.ondataavailable=e=>chunks.push(e.data);
+   recorder.onstop=async()=>{
+     const blob=new Blob(chunks,{type:'video/webm'});
+     const url=await blobToDataURL(blob);
+     vid.srcObject=null;vid.src=url;vid.controls=true;
+     localStorage.setItem('temp_'+key(id),url);
+     saveBtn.disabled=false;
+     recBtn.textContent="Enregistrer";recBtn.style.background="#e91e63";
+     info.textContent="Prévisualisation prête. Clique sur Sauvegarder.";
+   };
+   recorder.start();
+ };
+
+ stopBtn.onclick=()=>{
+   if(recorder&&recorder.state!=='inactive')recorder.stop();
+   stopBtn.disabled=true;recBtn.disabled=false;
+ };
+
+ saveBtn.onclick=()=>{
+   const temp=localStorage.getItem('temp_'+key(id));
+   if(!temp){alert("Pas de vidéo à sauvegarder.");return;}
+   const data={v:temp,t:Date.now()};
+   localStorage.setItem(key(id),JSON.stringify(data));
+   localStorage.removeItem('temp_'+key(id));
+   alert("Vidéo sauvegardée !");
+   playVideo(data.v,EXPIRY);
+ };
+}
+
+function playVideo(url,delay){
+ vid.src=url; vid.controls=true; vid.muted=false;
+ vid.play().catch(()=>{});
+ info.textContent="🎬 Lecture du message.";
+ setTimeout(()=>{
+   localStorage.removeItem(key(id));
+   alert("Le message a expiré (10 min).");
+   startRecorder();
+ },delay);
+}
+
+const saved=localStorage.getItem(key(id));
+if(saved){
+ const d=JSON.parse(saved);
+ if(Date.now()-d.t>EXPIRY){
+   localStorage.removeItem(key(id)); startRecorder();
+ }else playVideo(d.v,EXPIRY-(Date.now()-d.t));
+}else startRecorder();
+</script>
+</body>
+</html>
