@@ -5,37 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FloraNote — Enregistrement</title>
 <style>
-body {
-  font-family: Arial, sans-serif;
-  margin:0;
-  padding:16px;
-  text-align:center;
-  background:#fff6f8;
-  color:#333;
-}
+body { font-family: Arial; margin:0; padding:16px; text-align:center; background:#fff6f8; color:#333; }
 h1{margin:0 0 10px;font-size:1.8em}
-video{
-  width:100%;
-  max-width:480px;
-  border-radius:12px;
-  background:#000;
-  margin-top:10px;
-}
-button{
-  margin:8px;
-  padding:14px 20px;
-  border:none;
-  border-radius:10px;
-  font-size:16px;
-  font-weight:600;
-  color:#fff;
-}
+video{width:100%;max-width:480px;border-radius:12px;background:#000;margin-top:10px;}
+button{margin:8px;padding:14px 20px;border:none;border-radius:10px;font-size:16px;font-weight:600;color:#fff;}
 button.primary{background:#e91e63;}
 button.gray{background:#ccc;color:#111;}
 button.danger{background:#ff4d4d;}
 .small{font-size:13px;color:#555;margin-top:6px;}
 .container{max-width:720px;margin:0 auto;}
-#controls{margin-top:12px;}
 </style>
 </head>
 <body>
@@ -48,16 +26,4 @@ button.danger{background:#ff4d4d;}
     <button id="camBtn" class="primary">🎥 Activer caméra</button>
     <button id="recBtn" class="primary">⏺️ Enregistrer</button>
     <button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
-    <button id="saveBtn" class="primary" disabled>💾 Envoyer la vidéo</button>
-    <button id="deleteBtn" class="danger">🗑️ Supprimer la vidéo</button>
-  </div>
-  <div class="small" id="info"></div>
-  <footer class="small">© TeamKriKri — Prototype FloraNote</footer>
-</div>
-
-<script>
-let id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
-if(!id){
-  const nom = prompt("💐 À qui s’adresse cette carte FloraNote ?");
-  if(nom){ id = nom.trim(); location.hash = encodeURIComponent(id); location.reload(); }
-  else { alert("Il faut un prénom pour continuer."); }
+    <button id="saveBtn" class
