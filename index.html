@@ -23,14 +23,14 @@ footer{margin-top:12px;font-size:12px;color:#777}
   <p class="small">TeamKriKri — enregistre ton message vidéo ou lis celui déjà associé à cette carte.</p>
 
   <h2>ID : <span id="noteId"></span></h2>
-  <video id="vid" playsinline></video><br>
+  <video id="vid" playsinline controls></video><br>
 
   <!-- Zone d’enregistrement -->
   <div id="controls">
     <button id="camBtn">🎥 Activer caméra</button>
     <button id="recBtn">⏺️ Enregistrer</button>
     <button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
-    <button id="saveBtn" class="gray" disabled>💾 Sauvegarder</button>
+    <button id="saveBtn" class="gray" disabled>💾 Envoyer la vidéo</button>
   </div>
 
   <!-- Zone de lecture -->
@@ -45,6 +45,7 @@ footer{margin-top:12px;font-size:12px;color:#777}
 <script>
 const id=(location.hash&&location.hash.slice(1))||'DEMO';
 document.getElementById('noteId').textContent=id;
+
 const vid=document.getElementById('vid');
 const info=document.getElementById('info');
 const controls=document.getElementById('controls');
@@ -54,63 +55,75 @@ const recBtn=document.getElementById('recBtn');
 const stopBtn=document.getElementById('stopBtn');
 const saveBtn=document.getElementById('saveBtn');
 const deleteBtn=document.getElementById('deleteBtn');
+
 let stream,recorder,chunks=[];
 
 function key(i){return'floranote_'+i;}
-function blobToDataURL(b){return new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b);});}
 
-// --- MODE ENREGISTREMENT ---
+// MODE ENREGISTREMENT
 function startRecorderMode(){
- info.textContent="Aucune vidéo pour cette carte. Enregistre ton message 🎤";
- controls.classList.remove("hidden");
- viewControls.classList.add("hidden");
- vid.srcObject=null; vid.src=''; vid.controls=false;
- saveBtn.disabled=true;
+  info.textContent="Aucune vidéo pour cette carte. Enregistre ton message 🎤";
+  controls.classList.remove("hidden");
+  viewControls.classList.add("hidden");
+  vid.srcObject=null; vid.src=''; vid.controls=false;
+  saveBtn.disabled=true;
 
- camBtn.onclick=async()=>{
-   try{
-     stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-     vid.srcObject=stream; vid.muted=true; await vid.play();
-     info.textContent="Caméra activée ✅";
-   }catch(e){alert("Autorise la caméra et le micro pour utiliser FloraNote.");}
- };
+  camBtn.onclick=async()=>{
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      vid.srcObject=stream; vid.muted=true; await vid.play();
+      info.textContent="Caméra activée ✅";
+    }catch(e){alert("Autorise la caméra et le micro pour utiliser FloraNote.");}
+  };
 
- recBtn.onclick=()=>{
-   if(!stream){camBtn.click();setTimeout(()=>recBtn.click(),800);return;}
-   chunks=[];
-   recBtn.disabled=true;stopBtn.disabled=false;
-   recBtn.textContent="Enregistrement...";recBtn.style.background="#aaa";
-   recorder=new MediaRecorder(stream);
-   recorder.ondataavailable=e=>chunks.push(e.data);
-   recorder.onstop=async()=>{
-     const blob=new Blob(chunks,{type:'video/webm'});
-     const url=await blobToDataURL(blob);
-     vid.srcObject=null;vid.src=url;vid.controls=true;
-     localStorage.setItem('temp_'+key(id),url);
-     saveBtn.disabled=false;
-     recBtn.textContent="Enregistrer";recBtn.style.background="#e91e63";
-     info.textContent="Prévisualisation prête. Clique sur Sauvegarder.";
-   };
-   recorder.start();
- };
+  recBtn.onclick=()=>{
+    if(!stream){camBtn.click();setTimeout(()=>recBtn.click(),800);return;}
+    chunks=[];
+    recBtn.disabled=true;stopBtn.disabled=false;
+    recBtn.textContent="Enregistrement...";recBtn.style.background="#aaa";
+    recorder=new MediaRecorder(stream);
+    recorder.ondataavailable=e=>chunks.push(e.data);
+    recorder.onstop=async()=>{
+      const blob=new Blob(chunks,{type:'video/webm'});
+      vid.srcObject=null; vid.src=URL.createObjectURL(blob); vid.controls=true;
+      saveBtn.disabled=false;
+      recBtn.textContent="Enregistrer";recBtn.style.background="#e91e63";
+      info.textContent="Prévisualisation prête. Clique sur 'Envoyer la vidéo'.";
+      saveBtn.onclick=()=>uploadToFileIO(blob);
+    };
+    recorder.start();
+  };
 
- stopBtn.onclick=()=>{
-   if(recorder&&recorder.state!=='inactive')recorder.stop();
-   stopBtn.disabled=true;recBtn.disabled=false;
- };
-
- saveBtn.onclick=()=>{
-   const temp=localStorage.getItem('temp_'+key(id));
-   if(!temp){alert("Pas de vidéo à sauvegarder.");return;}
-   const data={v:temp,t:Date.now()};
-   localStorage.setItem(key(id),JSON.stringify(data));
-   localStorage.removeItem('temp_'+key(id));
-   alert("Vidéo sauvegardée 🎉");
-   playVideo(data.v);
- };
+  stopBtn.onclick=()=>{
+    if(recorder&&recorder.state!=='inactive')recorder.stop();
+    stopBtn.disabled=true;recBtn.disabled=false;
+  };
 }
 
-// --- MODE LECTURE ---
+// Envoi de la vidéo sur file.io
+async function uploadToFileIO(blob){
+  info.textContent="⏳ Envoi de la vidéo sur le serveur...";
+  const formData=new FormData();
+  formData.append('file', blob, `${id}.webm`);
+
+  try{
+    const res=await fetch('https://file.io/?expires=1d',{method:'POST',body:formData});
+    const data=await res.json();
+    if(data && data.link){
+      localStorage.setItem(key(id),data.link);
+      alert("Vidéo envoyée avec succès 🎉");
+      playVideo(data.link);
+    } else {
+      alert("Erreur lors de l'envoi. Réessaie.");
+      info.textContent="Erreur d’envoi ❌";
+    }
+  }catch(e){
+    alert("Impossible d’envoyer la vidéo. Vérifie ta connexion Internet.");
+    info.textContent="Erreur de réseau ❌";
+  }
+}
+
+// MODE LECTURE
 function playVideo(url){
   controls.classList.add("hidden");
   viewControls.classList.remove("hidden");
@@ -121,7 +134,6 @@ function playVideo(url){
   vid.play().catch(()=>{});
   info.textContent="🎬 Lecture du message vidéo.";
 
-  // bouton suppression manuelle
   deleteBtn.onclick=()=>{
     if(confirm("Supprimer cette vidéo ?")){
       localStorage.removeItem(key(id));
@@ -131,18 +143,14 @@ function playVideo(url){
   };
 }
 
-// --- DÉMARRAGE ---
+// DÉMARRAGE
 (function init(){
   const saved=localStorage.getItem(key(id));
   if(saved){
-    try{
-      const meta=JSON.parse(saved);
-      playVideo(meta.v);
-    }catch(e){
-      localStorage.removeItem(key(id));
-      startRecorderMode();
-    }
-  }else startRecorderMode();
+    playVideo(saved);
+  }else{
+    startRecorderMode();
+  }
 })();
 </script>
 </body>
