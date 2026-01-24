@@ -1,42 +1,32 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>🎬 FloraNote — Message vidéo</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FloraNote — Lecture</title>
 <style>
-body{font-family:sans-serif;margin:0;padding:20px;text-align:center;background:#fff6f8;color:#333}
-h1{margin:0 0 20px}
-video{width:100%;max-width:400px;border-radius:16px;background:#000;box-shadow:0 4px 20px rgba(0,0,0,0.2)}
-footer{margin-top:20px;font-size:12px;color:#777}
-.loading{margin-top:40px;font-size:16px;color:#555}
+body{font-family:sans-serif;margin:0;padding:16px;text-align:center;background:#fff6f8;color:#333}
+h1{margin:0 0 10px}
+video{width:100%;max-width:380px;border-radius:12px;background:#000;margin-top:10px}
+button.danger{margin:10px;padding:10px 16px;border:0;border-radius:8px;background:#ff4d4d;color:#fff;font-weight:600;font-size:15px}
+.small{font-size:13px;color:#555;margin-top:6px}
+.container{max-width:720px;margin:0 auto}
 </style>
 </head>
 <body>
-<h1>🌸 FloraNote</h1>
-<div id="content">
-  <div class="loading" id="loading">Chargement du message vidéo...</div>
-  <video id="vid" playsinline controls class="hidden"></video>
+<div class="container">
+  <h1>🌸 FloraNote — Lecture</h1>
+  <p class="small">Scanne le QR pour lire le message vidéo du destinataire.</p>
+  <h2>ID : <span id="noteId"></span></h2>
+  <video id="vid" playsinline controls></video><br>
+  <button id="deleteBtn" class="danger">🗑️ Supprimer la vidéo</button>
+  <div class="small" id="info"></div>
+  <footer class="small">© TeamKriKri — Prototype FloraNote</footer>
 </div>
-<footer>© TeamKriKri — Message FloraNote</footer>
 
 <script>
-const id = (location.hash && location.hash.slice(1)) || 'DEMO';
-const key = 'floranote_' + id;
-const vid = document.getElementById('vid');
-const loading = document.getElementById('loading');
-
-const saved = localStorage.getItem(key);
-
-if(saved){
-  // Si le lien file.io est trouvé
-  vid.src = saved;
-  vid.classList.remove('hidden');
-  vid.play().catch(()=>{});
-  loading.textContent = "🎬 Votre message FloraNote est prêt.";
-}else{
-  loading.textContent = "❌ Aucun message trouvé pour cette carte.";
-}
-</script>
-</body>
-</html>
+let id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
+if(!id){
+  const nom = prompt("💐 À qui s’adresse cette carte FloraNote ?");
+  if(nom){ id = nom.trim(); location.hash = encodeURIComponent(id); location.reload(); }
+  el
