@@ -12,7 +12,6 @@ button{margin:6px;padding:10px 16px;border:0;border-radius:8px;background:#e91e6
 button.gray{background:#ccc;color:#111}
 button.danger{background:#ff4d4d}
 .small{font-size:13px;color:#555;margin-top:6px}
-footer{margin-top:12px;font-size:12px;color:#777}
 .container{max-width:720px;margin:0 auto}
 .hidden{display:none}
 </style>
@@ -20,9 +19,8 @@ footer{margin-top:12px;font-size:12px;color:#777}
 <body>
 <div class="container">
   <h1>🌸 FloraNote</h1>
-  <p class="small">TeamKriKri — scanne ce lien pour enregistrer ou lire un message vidéo personnalisé.</p>
-
-  <h2 id="titleId">ID : <span id="noteId"></span></h2>
+  <p class="small">Scanne le QR pour enregistrer ou lire un message vidéo.</p>
+  <h2>ID : <span id="noteId"></span></h2>
   <video id="vid" playsinline controls></video><br>
 
   <div id="controls">
@@ -30,9 +28,6 @@ footer{margin-top:12px;font-size:12px;color:#777}
     <button id="recBtn">⏺️ Enregistrer</button>
     <button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
     <button id="saveBtn" class="gray" disabled>💾 Envoyer la vidéo</button>
-  </div>
-
-  <div id="viewControls" class="hidden">
     <button id="deleteBtn" class="danger">🗑️ Supprimer la vidéo</button>
   </div>
 
@@ -41,124 +36,19 @@ footer{margin-top:12px;font-size:12px;color:#777}
 </div>
 
 <script>
-/* 🌼 Étape 1 : Demande du nom si aucun identifiant */
-let id = location.hash ? location.hash.slice(1) : "";
+let id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
 if(!id){
   const nom = prompt("💐 À qui s’adresse cette carte FloraNote ?");
-  if(nom){
-    location.hash = encodeURIComponent(nom.trim());
-    location.reload();
-  } else {
-    alert("Merci d’indiquer un prénom ou un identifiant pour continuer.");
-  }
+  if(nom){ id = nom.trim(); location.hash = encodeURIComponent(id); location.reload(); }
+  else { alert("Il faut un prénom pour continuer."); }
 }
+document.getElementById("noteId").textContent = id || "DEMO";
 
-/* 🌸 Étape 2 : Initialisation */
-id = (location.hash && location.hash.slice(1)) || "DEMO";
-document.getElementById("noteId").textContent = decodeURIComponent(id);
-const vid=document.getElementById("vid");
-const info=document.getElementById("info");
-const controls=document.getElementById("controls");
-const viewControls=document.getElementById("viewControls");
-const camBtn=document.getElementById("camBtn");
-const recBtn=document.getElementById("recBtn");
-const stopBtn=document.getElementById("stopBtn");
-const saveBtn=document.getElementById("saveBtn");
-const deleteBtn=document.getElementById("deleteBtn");
-let stream,recorder,chunks=[];
-
-/* 🔑 Fonctions */
-async function checkExistingVideo(){
-  try{
-    const res=await fetch(`https://transfer.sh/${id}.txt`);
-    if(res.ok){
-      const link=await res.text();
-      playVideo(link.trim());
-      return true;
-    }
-  }catch(e){}
-  startRecorderMode();
-  return false;
-}
-
-function startRecorderMode(){
-  info.textContent="Aucune vidéo pour cette carte. Enregistre ton message 🎤";
-  controls.classList.remove("hidden");
-  viewControls.classList.add("hidden");
-  vid.srcObject=null; vid.src=''; vid.controls=false;
-  saveBtn.disabled=true;
-
-  camBtn.onclick=async()=>{
-    try{
-      stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      vid.srcObject=stream; vid.muted=true; await vid.play();
-      info.textContent="Caméra activée ✅";
-    }catch(e){alert("Autorise la caméra et le micro pour utiliser FloraNote.");}
-  };
-
-  recBtn.onclick=()=>{
-    if(!stream){camBtn.click();setTimeout(()=>recBtn.click(),800);return;}
-    chunks=[];
-    recBtn.disabled=true;stopBtn.disabled=false;
-    recBtn.textContent="Enregistrement...";recBtn.style.background="#aaa";
-    recorder=new MediaRecorder(stream);
-    recorder.ondataavailable=e=>chunks.push(e.data);
-    recorder.onstop=async()=>{
-      const blob=new Blob(chunks,{type:'video/webm'});
-      vid.srcObject=null; vid.src=URL.createObjectURL(blob); vid.controls=true;
-      saveBtn.disabled=false;
-      recBtn.textContent="Enregistrer";recBtn.style.background="#e91e63";
-      info.textContent="Prévisualisation prête. Clique sur 'Envoyer la vidéo'.";
-      saveBtn.onclick=()=>uploadToTransferSH(blob);
-    };
-    recorder.start();
-  };
-
-  stopBtn.onclick=()=>{
-    if(recorder&&recorder.state!=='inactive')recorder.stop();
-    stopBtn.disabled=true;recBtn.disabled=false;
-  };
-}
-
-/* ☁️ Envoi vidéo sur Transfer.sh */
-async function uploadToTransferSH(blob){
-  info.textContent="⏳ Envoi de la vidéo en cours...";
-  try{
-    const res=await fetch('https://transfer.sh/'+id+'.webm',{method:'PUT',body:blob});
-    if(!res.ok) throw new Error("Erreur serveur");
-    const videoURL=await res.text();
-    info.textContent="Vidéo envoyée ! Création du lien...";
-    await fetch('https://transfer.sh/'+id+'.txt',{method:'PUT',body:videoURL.trim()});
-    alert("Vidéo envoyée 🎉 Elle sera lisible via ce même QR code !");
-    playVideo(videoURL.trim());
-  }catch(e){
-    alert("Erreur d’envoi ou de connexion.");
-    console.error(e);
-  }
-}
-
-/* ▶️ Lecture */
-function playVideo(url){
-  controls.classList.add("hidden");
-  viewControls.classList.remove("hidden");
-  vid.srcObject=null;
-  vid.src=url;
-  vid.controls=true;
-  vid.muted=false;
-  vid.play().catch(()=>{});
-  info.textContent="🎬 Lecture du message vidéo.";
-
-  deleteBtn.onclick=async()=>{
-    if(confirm("Supprimer cette vidéo ?")){
-      await fetch('https://transfer.sh/'+id+'.txt',{method:'DELETE'});
-      alert("Vidéo supprimée 🗑️");
-      startRecorderMode();
-    }
-  };
-}
-
-/* 🚀 Démarrage */
-checkExistingVideo();
-</script>
-</body>
-</html>
+const vid = document.getElementById("vid");
+const info = document.getElementById("info");
+const controls = document.getElementById("controls");
+const camBtn = document.getElementById("camBtn");
+const recBtn = document.getElementById("recBtn");
+const stopBtn = document.getElementById("stopBtn");
+const saveBtn = document.getElementById("saveBtn");
+cons
