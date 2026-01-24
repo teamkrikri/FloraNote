@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FloraNote — TeamKriKri</title>
 <style>
 body{font-family:sans-serif;margin:0;padding:16px;text-align:center;background:#fff6f8;color:#333}
@@ -20,12 +20,11 @@ footer{margin-top:12px;font-size:12px;color:#777}
 <body>
 <div class="container">
   <h1>🌸 FloraNote</h1>
-  <p class="small">TeamKriKri — enregistre ton message vidéo ou lis celui déjà associé à cette carte.</p>
+  <p class="small">TeamKriKri — scanne ce lien pour enregistrer ou lire un message vidéo personnalisé.</p>
 
-  <h2>ID : <span id="noteId"></span></h2>
+  <h2 id="titleId">ID : <span id="noteId"></span></h2>
   <video id="vid" playsinline controls></video><br>
 
-  <!-- Zone d’enregistrement -->
   <div id="controls">
     <button id="camBtn">🎥 Activer caméra</button>
     <button id="recBtn">⏺️ Enregistrer</button>
@@ -33,7 +32,6 @@ footer{margin-top:12px;font-size:12px;color:#777}
     <button id="saveBtn" class="gray" disabled>💾 Envoyer la vidéo</button>
   </div>
 
-  <!-- Zone de lecture -->
   <div id="viewControls" class="hidden">
     <button id="deleteBtn" class="danger">🗑️ Supprimer la vidéo</button>
   </div>
@@ -43,24 +41,46 @@ footer{margin-top:12px;font-size:12px;color:#777}
 </div>
 
 <script>
-const id=(location.hash&&location.hash.slice(1))||'DEMO';
-document.getElementById('noteId').textContent=id;
+/* 🌼 Étape 1 : Demande du nom si aucun identifiant */
+let id = location.hash ? location.hash.slice(1) : "";
+if(!id){
+  const nom = prompt("💐 À qui s’adresse cette carte FloraNote ?");
+  if(nom){
+    location.hash = encodeURIComponent(nom.trim());
+    location.reload();
+  } else {
+    alert("Merci d’indiquer un prénom ou un identifiant pour continuer.");
+  }
+}
 
-const vid=document.getElementById('vid');
-const info=document.getElementById('info');
-const controls=document.getElementById('controls');
-const viewControls=document.getElementById('viewControls');
-const camBtn=document.getElementById('camBtn');
-const recBtn=document.getElementById('recBtn');
-const stopBtn=document.getElementById('stopBtn');
-const saveBtn=document.getElementById('saveBtn');
-const deleteBtn=document.getElementById('deleteBtn');
-
+/* 🌸 Étape 2 : Initialisation */
+id = (location.hash && location.hash.slice(1)) || "DEMO";
+document.getElementById("noteId").textContent = decodeURIComponent(id);
+const vid=document.getElementById("vid");
+const info=document.getElementById("info");
+const controls=document.getElementById("controls");
+const viewControls=document.getElementById("viewControls");
+const camBtn=document.getElementById("camBtn");
+const recBtn=document.getElementById("recBtn");
+const stopBtn=document.getElementById("stopBtn");
+const saveBtn=document.getElementById("saveBtn");
+const deleteBtn=document.getElementById("deleteBtn");
 let stream,recorder,chunks=[];
 
-function key(i){return'floranote_'+i;}
+/* 🔑 Fonctions */
+async function checkExistingVideo(){
+  try{
+    const res=await fetch(`https://transfer.sh/${id}.txt`);
+    if(res.ok){
+      const link=await res.text();
+      playVideo(link.trim());
+      return true;
+    }
+  }catch(e){}
+  startRecorderMode();
+  return false;
+}
 
-// MODE ENREGISTREMENT
 function startRecorderMode(){
   info.textContent="Aucune vidéo pour cette carte. Enregistre ton message 🎤";
   controls.classList.remove("hidden");
@@ -89,7 +109,7 @@ function startRecorderMode(){
       saveBtn.disabled=false;
       recBtn.textContent="Enregistrer";recBtn.style.background="#e91e63";
       info.textContent="Prévisualisation prête. Clique sur 'Envoyer la vidéo'.";
-      saveBtn.onclick=()=>uploadToFileIO(blob);
+      saveBtn.onclick=()=>uploadToTransferSH(blob);
     };
     recorder.start();
   };
@@ -100,30 +120,24 @@ function startRecorderMode(){
   };
 }
 
-// Envoi de la vidéo sur file.io
-async function uploadToFileIO(blob){
-  info.textContent="⏳ Envoi de la vidéo sur le serveur...";
-  const formData=new FormData();
-  formData.append('file', blob, `${id}.webm`);
-
+/* ☁️ Envoi vidéo sur Transfer.sh */
+async function uploadToTransferSH(blob){
+  info.textContent="⏳ Envoi de la vidéo en cours...";
   try{
-    const res=await fetch('https://file.io/?expires=1d',{method:'POST',body:formData});
-    const data=await res.json();
-    if(data && data.link){
-      localStorage.setItem(key(id),data.link);
-      alert("Vidéo envoyée avec succès 🎉");
-      playVideo(data.link);
-    } else {
-      alert("Erreur lors de l'envoi. Réessaie.");
-      info.textContent="Erreur d’envoi ❌";
-    }
+    const res=await fetch('https://transfer.sh/'+id+'.webm',{method:'PUT',body:blob});
+    if(!res.ok) throw new Error("Erreur serveur");
+    const videoURL=await res.text();
+    info.textContent="Vidéo envoyée ! Création du lien...";
+    await fetch('https://transfer.sh/'+id+'.txt',{method:'PUT',body:videoURL.trim()});
+    alert("Vidéo envoyée 🎉 Elle sera lisible via ce même QR code !");
+    playVideo(videoURL.trim());
   }catch(e){
-    alert("Impossible d’envoyer la vidéo. Vérifie ta connexion Internet.");
-    info.textContent="Erreur de réseau ❌";
+    alert("Erreur d’envoi ou de connexion.");
+    console.error(e);
   }
 }
 
-// MODE LECTURE
+/* ▶️ Lecture */
 function playVideo(url){
   controls.classList.add("hidden");
   viewControls.classList.remove("hidden");
@@ -134,24 +148,17 @@ function playVideo(url){
   vid.play().catch(()=>{});
   info.textContent="🎬 Lecture du message vidéo.";
 
-  deleteBtn.onclick=()=>{
+  deleteBtn.onclick=async()=>{
     if(confirm("Supprimer cette vidéo ?")){
-      localStorage.removeItem(key(id));
+      await fetch('https://transfer.sh/'+id+'.txt',{method:'DELETE'});
       alert("Vidéo supprimée 🗑️");
       startRecorderMode();
     }
   };
 }
 
-// DÉMARRAGE
-(function init(){
-  const saved=localStorage.getItem(key(id));
-  if(saved){
-    playVideo(saved);
-  }else{
-    startRecorderMode();
-  }
-})();
+/* 🚀 Démarrage */
+checkExistingVideo();
 </script>
 </body>
 </html>
