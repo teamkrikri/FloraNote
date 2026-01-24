@@ -26,4 +26,110 @@ button.danger{background:#ff4d4d;}
     <button id="camBtn" class="primary">🎥 Activer caméra</button>
     <button id="recBtn" class="primary">⏺️ Enregistrer</button>
     <button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
-    <button id="saveBtn" class
+    <button id="saveBtn" class="primary" disabled>💾 Envoyer la vidéo</button>
+    <button id="deleteBtn" class="danger">🗑️ Supprimer la vidéo</button>
+  </div>
+  <div class="small" id="info"></div>
+  <footer class="small">© TeamKriKri — Prototype FloraNote</footer>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  let id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
+  if(!id){
+    const nom = prompt("💐 À qui s’adresse cette carte FloraNote ?");
+    if(nom){ id = nom.trim(); location.hash = encodeURIComponent(id); location.reload(); }
+    else { alert("Il faut un prénom pour continuer."); }
+  }
+  document.getElementById("noteId").textContent = id || "DEMO";
+
+  const vid = document.getElementById("vid");
+  const info = document.getElementById("info");
+  const camBtn = document.getElementById("camBtn");
+  const recBtn = document.getElementById("recBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const saveBtn = document.getElementById("saveBtn");
+  const deleteBtn = document.getElementById("deleteBtn");
+
+  let stream=null, recorder=null, chunks=[];
+  let videoURL = localStorage.getItem("floranote_" + id);
+
+  function updateUI(){
+    if(videoURL){
+      vid.src = videoURL;
+      vid.controls = true;
+      vid.play().catch(()=>{});
+      info.textContent = "🎬 Lecture du message vidéo";
+    } else {
+      vid.src=""; vid.controls=false;
+      info.textContent = "Aucune vidéo, enregistre ton message 🎤";
+    }
+  }
+  updateUI();
+
+  /* Caméra */
+  camBtn.addEventListener("click", async ()=>{
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      vid.srcObject = stream; vid.muted = true; await vid.play();
+      info.textContent="Caméra activée ✅";
+    }catch(e){ alert("Autorise la caméra et le micro pour utiliser FloraNote."); }
+  });
+
+  /* Enregistrement */
+  recBtn.addEventListener("click", ()=>{
+    if(!stream){ camBtn.click(); setTimeout(()=>recBtn.click(),500); return; }
+    chunks = [];
+    recBtn.disabled=true; stopBtn.disabled=false;
+    recBtn.textContent="Enregistrement..."; recBtn.style.background="#aaa";
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
+    recorder.onstop = ()=>{
+      const blob = new Blob(chunks,{type:'video/webm'});
+      vid.srcObject=null; vid.src=URL.createObjectURL(blob); vid.controls=true;
+      saveBtn.disabled=false;
+      recBtn.disabled=false; recBtn.textContent="⏺️ Enregistrer"; recBtn.style.background="#e91e63";
+      saveBtn.onclick = ()=> uploadVideo(blob);
+    };
+    recorder.start();
+  });
+
+  stopBtn.addEventListener("click", ()=>{
+    if(recorder && recorder.state!="inactive") recorder.stop();
+    stopBtn.disabled=true;
+  });
+
+  async function uploadVideo(blob){
+    info.textContent="⏳ Envoi en cours...";
+    try{
+      const form = new FormData();
+      form.append("file", blob, id+".webm");
+      const res = await fetch("https://uguu.se/api.php?d=upload-tool", {method:"POST", body:form});
+      const text = await res.text();
+      if(text.startsWith("https://")){
+        videoURL = text.trim();
+        localStorage.setItem("floranote_" + id, videoURL);
+        info.textContent = "Vidéo envoyée ✅";
+        updateUI();
+        alert("Vidéo enregistrée et prête à être lue sur n’importe quel téléphone !");
+      } else {
+        alert("Erreur upload : "+text);
+        info.textContent="Erreur d'envoi ❌";
+      }
+    }catch(e){ console.error(e); alert("Erreur réseau ou serveur."); info.textContent="Erreur d'envoi ❌"; }
+  }
+
+  /* Supprimer */
+  deleteBtn.addEventListener("click", ()=>{
+    if(confirm("Supprimer cette vidéo ?")){
+      localStorage.removeItem("floranote_" + id);
+      videoURL=null;
+      updateUI();
+      info.textContent="Vidéo supprimée. Tu peux enregistrer un nouveau message.";
+    }
+  });
+
+});
+</script>
+</body>
+</html>
