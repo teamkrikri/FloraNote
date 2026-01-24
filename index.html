@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>FloraNote — TeamKriKri</title>
 <style>
 body{font-family:sans-serif;margin:0;padding:16px;text-align:center;background:#fff6f8;color:#333}
@@ -10,41 +10,60 @@ h1{margin:0 0 10px}
 video{width:100%;max-width:380px;border-radius:12px;background:#000;margin-top:10px}
 button{margin:6px;padding:10px 16px;border:0;border-radius:8px;background:#e91e63;color:#fff;font-weight:600;font-size:15px}
 button.gray{background:#ccc;color:#111}
+button.danger{background:#ff4d4d}
 .small{font-size:13px;color:#555;margin-top:6px}
 footer{margin-top:12px;font-size:12px;color:#777}
+.container{max-width:720px;margin:0 auto}
+.hidden{display:none}
 </style>
 </head>
 <body>
-<h1>🌸 FloraNote</h1>
-<p class="small">Projet TeamKriKri — scanne ce lien pour enregistrer ou lire un message vidéo personnalisé 💐</p>
+<div class="container">
+  <h1>🌸 FloraNote</h1>
+  <p class="small">TeamKriKri — enregistre ton message vidéo ou lis celui déjà associé à cette carte.</p>
 
-<h2>ID : <span id="noteId"></span></h2>
-<video id="vid" playsinline></video><br>
-<button id="camBtn">🎥 Activer caméra</button>
-<button id="recBtn">⏺️ Enregistrer</button>
-<button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
-<button id="saveBtn" class="gray" disabled>💾 Sauvegarder</button>
-<div class="small" id="info"></div>
+  <h2>ID : <span id="noteId"></span></h2>
+  <video id="vid" playsinline></video><br>
 
-<footer>© TeamKriKri — Prototype scolaire FloraNote</footer>
+  <!-- Zone d’enregistrement -->
+  <div id="controls">
+    <button id="camBtn">🎥 Activer caméra</button>
+    <button id="recBtn">⏺️ Enregistrer</button>
+    <button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
+    <button id="saveBtn" class="gray" disabled>💾 Sauvegarder</button>
+  </div>
+
+  <!-- Zone de lecture -->
+  <div id="viewControls" class="hidden">
+    <button id="deleteBtn" class="danger">🗑️ Supprimer la vidéo</button>
+  </div>
+
+  <div class="small" id="info"></div>
+  <footer>© TeamKriKri — Prototype FloraNote</footer>
+</div>
 
 <script>
-const EXPIRY=10*60*1000; // 10 minutes
-const id=location.hash.slice(1)||'DEMO';
+const id=(location.hash&&location.hash.slice(1))||'DEMO';
 document.getElementById('noteId').textContent=id;
 const vid=document.getElementById('vid');
 const info=document.getElementById('info');
+const controls=document.getElementById('controls');
+const viewControls=document.getElementById('viewControls');
 const camBtn=document.getElementById('camBtn');
 const recBtn=document.getElementById('recBtn');
 const stopBtn=document.getElementById('stopBtn');
 const saveBtn=document.getElementById('saveBtn');
+const deleteBtn=document.getElementById('deleteBtn');
 let stream,recorder,chunks=[];
 
-function key(i){return'video_'+i;}
+function key(i){return'floranote_'+i;}
 function blobToDataURL(b){return new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b);});}
 
-function startRecorder(){
+// --- MODE ENREGISTREMENT ---
+function startRecorderMode(){
  info.textContent="Aucune vidéo pour cette carte. Enregistre ton message 🎤";
+ controls.classList.remove("hidden");
+ viewControls.classList.add("hidden");
  vid.srcObject=null; vid.src=''; vid.controls=false;
  saveBtn.disabled=true;
 
@@ -87,29 +106,44 @@ function startRecorder(){
    localStorage.setItem(key(id),JSON.stringify(data));
    localStorage.removeItem('temp_'+key(id));
    alert("Vidéo sauvegardée 🎉");
-   playVideo(data.v,EXPIRY);
+   playVideo(data.v);
  };
 }
 
-function playVideo(url,delay){
- vid.src=url; vid.controls=true; vid.muted=false;
- vid.play().catch(()=>{});
- info.textContent="🎬 Lecture du message vidéo.";
- setTimeout(()=>{
-   localStorage.removeItem(key(id));
-   alert("Le message a expiré (10 minutes écoulées).");
-   startRecorder();
- },delay);
+// --- MODE LECTURE ---
+function playVideo(url){
+  controls.classList.add("hidden");
+  viewControls.classList.remove("hidden");
+  vid.srcObject=null;
+  vid.src=url;
+  vid.controls=true;
+  vid.muted=false;
+  vid.play().catch(()=>{});
+  info.textContent="🎬 Lecture du message vidéo.";
+
+  // bouton suppression manuelle
+  deleteBtn.onclick=()=>{
+    if(confirm("Supprimer cette vidéo ?")){
+      localStorage.removeItem(key(id));
+      alert("Vidéo supprimée 🗑️");
+      startRecorderMode();
+    }
+  };
 }
 
-// Démarrage
-const saved=localStorage.getItem(key(id));
-if(saved){
- const d=JSON.parse(saved);
- if(Date.now()-d.t>EXPIRY){
-   localStorage.removeItem(key(id)); startRecorder();
- }else playVideo(d.v,EXPIRY-(Date.now()-d.t));
-}else startRecorder();
+// --- DÉMARRAGE ---
+(function init(){
+  const saved=localStorage.getItem(key(id));
+  if(saved){
+    try{
+      const meta=JSON.parse(saved);
+      playVideo(meta.v);
+    }catch(e){
+      localStorage.removeItem(key(id));
+      startRecorderMode();
+    }
+  }else startRecorderMode();
+})();
 </script>
 </body>
 </html>
