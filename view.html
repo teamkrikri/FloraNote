@@ -1,68 +1,87 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FloraNote — Lecture</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>🌸 FloraNote — Lecture du message</title>
 <style>
-body { font-family: Arial; margin:0; padding:16px; text-align:center; background:#fff6f8; color:#333; }
-h1{margin:0 0 10px;font-size:1.8em}
-video{width:100%;max-width:480px;border-radius:12px;background:#000;margin-top:10px;}
-button{margin:12px;padding:14px 20px;border:none;border-radius:10px;font-size:16px;font-weight:600;color:#fff;}
-button.danger{background:#ff4d4d;}
-.small{font-size:13px;color:#555;margin-top:6px;}
-.container{max-width:720px;margin:0 auto;}
+body {
+  font-family: Arial, sans-serif;
+  background: #fff6f8;
+  color: #333;
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+}
+h1 { margin-bottom: 5px; }
+p { margin-top: 0; }
+video {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 12px;
+  background: #000;
+  margin-top: 15px;
+}
+button {
+  margin-top: 15px;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: #e91e63;
+  cursor: pointer;
+}
+.small { font-size: 13px; color: #555; margin-top: 12px; }
 </style>
 </head>
+
 <body>
-<div class="container">
-  <h1>🌸 FloraNote — Lecture</h1>
-  <p class="small">Scanne le QR pour lire le message vidéo.</p>
-  <h2>ID : <span id="noteId"></span></h2>
-  <video id="vid" playsinline controls></video><br>
-  <button id="deleteBtn" class="danger">🗑️ Supprimer la vidéo</button>
-  <div class="small" id="info"></div>
-  <footer class="small">© TeamKriKri — Prototype FloraNote</footer>
+<h1>🌸 FloraNote</h1>
+<p id="subtitle">Lecture du message vidéo</p>
+<div id="content">
+  <p>Chargement...</p>
 </div>
+<footer class="small">© TeamKriKri — Version NAS Synology</footer>
 
 <script>
-document.addEventListener("DOMContentLoaded", function(){
-  let id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
-  if(!id){
-    const nom = prompt("💐 À qui s’adresse cette carte FloraNote ?");
-    if(nom){ id = nom.trim(); location.hash = encodeURIComponent(id); location.reload(); }
-    else { alert("Il faut un prénom pour continuer."); }
-  }
-  document.getElementById("noteId").textContent = id || "DEMO";
+/* 🔗 Adresse publique de ton NAS (QuickConnect ou domaine perso) */
+const NAS_URL = "https://dha-nas2.synology.me/videos/";
 
-  const vid = document.getElementById("vid");
-  const info = document.getElementById("info");
-  const deleteBtn = document.getElementById("deleteBtn");
+/* Identifiant pris depuis le QR code (ex. view.html#vanessa) */
+let id = location.hash ? decodeURIComponent(location.hash.slice(1)).trim().toLowerCase() : "";
+const content = document.getElementById("content");
 
-  let videoURL = localStorage.getItem("floranote_" + id);
+if (!id) {
+  content.innerHTML = `
+    <p>💐 Scanne une carte FloraNote pour lire un message vidéo.</p>
+    <p>Ou entre un prénom :</p>
+    <input id="name" placeholder="ex : Vanessa" style="padding:8px;border-radius:6px;border:1px solid #ccc;">
+    <button onclick="go()">Lire</button>
+  `;
+} else {
+  showVideo(id);
+}
 
-  function updateUI(){
-    if(videoURL){
-      vid.src = videoURL;
-      vid.controls = true;
-      vid.play().catch(()=>{});
-      info.textContent = "🎬 Lecture du message vidéo";
-    } else {
-      vid.src=""; vid.controls=false;
-      info.textContent="Aucune vidéo disponible pour ce destinataire.";
-    }
-  }
-  updateUI();
+/* Lancer la lecture depuis le champ manuel */
+function go() {
+  const name = document.getElementById("name").value.trim().toLowerCase();
+  if (name) window.location.hash = encodeURIComponent(name);
+  window.location.reload();
+}
 
-  deleteBtn.addEventListener("click", ()=>{
-    if(confirm("Supprimer cette vidéo ?")){
-      localStorage.removeItem("floranote_" + id);
-      videoURL=null;
-      updateUI();
-      info.textContent="Vidéo supprimée. Aucun message disponible.";
-    }
-  });
-});
+/* Afficher la vidéo */
+function showVideo(name) {
+  const url = NAS_URL + encodeURIComponent(name) + ".webm";
+  content.innerHTML = `
+    <h2>💌 Message pour ${name}</h2>
+    <video src="${url}" controls autoplay playsinline></video>
+    <div class="small">
+      <a href="${url}" target="_blank">🔗 Ouvrir la vidéo dans un nouvel onglet</a>
+    </div>
+  `;
+}
 </script>
 </body>
 </html>
