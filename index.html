@@ -3,108 +3,149 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>🌸 FloraNote — Enregistrement</title>
+<title>🌸 FloraNote — Message unique</title>
 <style>
-body { font-family: Arial, sans-serif; margin:0; padding:16px; text-align:center; background:#fff6f8; color:#333; }
-h1 { margin:0 0 10px; font-size:1.8em; }
+body { font-family: Arial, sans-serif; background:#fff6f8; color:#333; margin:0; padding:16px; text-align:center; }
+h1 { margin-bottom: 10px; }
 video { width:100%; max-width:480px; border-radius:12px; background:#000; margin-top:10px; }
 button { margin:8px; padding:14px 20px; border:none; border-radius:10px; font-size:16px; font-weight:600; color:#fff; cursor:pointer; }
 button.primary{ background:#e91e63; }
 button.gray{ background:#ccc; color:#111; }
+button.danger{ background:#ff4d4d; }
 .small{ font-size:13px; color:#555; margin-top:6px; }
 </style>
 </head>
 
 <body>
 <h1>🌸 FloraNote</h1>
-<p>Enregistre ton message vidéo 💐</p>
-<h2>ID : <span id="noteId"></span></h2>
-
-<video id="vid" playsinline controls></video><br>
-<button id="camBtn" class="primary">🎥 Activer caméra</button>
-<button id="recBtn" class="primary">⏺️ Enregistrer</button>
-<button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
-<button id="uploadBtn" class="primary" disabled>☁️ Envoyer sur NAS</button>
-
-<div id="info" class="small"></div>
-<footer class="small">© TeamKriKri — Version NAS Synology</footer>
+<p id="status">Chargement...</p>
+<div id="content"></div>
+<footer class="small">© TeamKriKri — Version NAS unique QR</footer>
 
 <script>
-/* 🔗 Mets ici l’adresse de ton NAS */
+/* 🔗 Ton NAS Synology */
+const NAS_URL = "https://dha-nas2.synology.me/videos/";
 const SERVER_UPLOAD = "https://dha-nas2.synology.me/upload.php";
+const SERVER_DELETE = "https://dha-nas2.synology.me/delete.php";
 
-let id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
+/* --- Récupération de l’identifiant du QR code --- */
+let id = location.hash ? decodeURIComponent(location.hash.slice(1)).trim().toLowerCase() : "";
 if (!id) {
   id = prompt("💐 À qui s’adresse ce message ?") || "demo";
   location.hash = encodeURIComponent(id);
   location.reload();
 }
-document.getElementById("noteId").textContent = id;
+document.title = "FloraNote — " + id;
 
-const vid = document.getElementById("vid");
-const info = document.getElementById("info");
-const camBtn = document.getElementById("camBtn");
-const recBtn = document.getElementById("recBtn");
-const stopBtn = document.getElementById("stopBtn");
-const uploadBtn = document.getElementById("uploadBtn");
+/* --- Vérifie si la vidéo existe déjà --- */
+checkIfExists(id);
 
-let stream = null, recorder = null, chunks = [], blob = null;
-
-/* Activer caméra */
-camBtn.onclick = async()=>{
+async function checkIfExists(name) {
+  const videoUrl = NAS_URL + encodeURIComponent(name) + ".webm";
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
-    vid.srcObject = stream; vid.muted = true; await vid.play();
-    info.textContent = "🎥 Caméra activée ✅";
-  } catch(e) {
-    alert("Autorise la caméra et le micro !");
+    const res = await fetch(videoUrl, { method: "HEAD" });
+    if (res.ok) {
+      showVideo(videoUrl, name); // la vidéo existe 🎬
+    } else {
+      showRecorder(name); // pas encore enregistrée 🎥
+    }
+  } catch (e) {
+    document.getElementById("status").textContent = "⚠️ Erreur de connexion au NAS.";
   }
-};
+}
 
-/* Enregistrement */
-recBtn.onclick = ()=>{
-  if (!stream) { camBtn.click(); setTimeout(()=>recBtn.click(),500); return; }
-  chunks = [];
-  recorder = new MediaRecorder(stream);
-  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
-  recorder.onstop = ()=>{
-    blob = new Blob(chunks, { type: "video/webm" });
-    vid.srcObject = null;
-    vid.src = URL.createObjectURL(blob);
-    vid.controls = true;
-    uploadBtn.disabled = false;
-    info.textContent = "✅ Vidéo prête à être envoyée.";
+/* --- Affiche le lecteur vidéo --- */
+function showVideo(url, name) {
+  document.getElementById("status").textContent = "🎬 Message pour " + name;
+  document.getElementById("content").innerHTML = `
+    <video src="${url}" controls autoplay playsinline></video><br>
+    <a href="${url}" target="_blank">🔗 Ouvrir dans une nouvelle fenêtre</a><br>
+    <button class="danger" onclick="deleteVideo('${name}')">🗑️ Supprimer</button>
+  `;
+}
+
+/* --- Affiche le mode enregistrement --- */
+function showRecorder(name) {
+  document.getElementById("status").textContent = "🎥 Aucun message trouvé pour " + name;
+  document.getElementById("content").innerHTML = `
+    <video id="vid" playsinline></video><br>
+    <button id="camBtn" class="primary">🎥 Activer caméra</button>
+    <button id="recBtn" class="primary">⏺️ Enregistrer</button>
+    <button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
+    <button id="uploadBtn" class="primary" disabled>☁️ Envoyer sur NAS</button>
+    <div id="info" class="small"></div>
+  `;
+
+  const vid = document.getElementById("vid");
+  const info = document.getElementById("info");
+  const camBtn = document.getElementById("camBtn");
+  const recBtn = document.getElementById("recBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const uploadBtn = document.getElementById("uploadBtn");
+
+  let stream=null, recorder=null, chunks=[], blob=null;
+
+  camBtn.onclick = async()=>{
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      vid.srcObject = stream; vid.muted=true; await vid.play();
+      info.textContent = "🎥 Caméra activée ✅";
+    }catch(e){ alert("Autorise la caméra et le micro."); }
   };
-  recorder.start();
-  recBtn.disabled = true;
-  stopBtn.disabled = false;
-  info.textContent = "⏺️ Enregistrement...";
-};
 
-/* Stop */
-stopBtn.onclick = ()=>{
-  if (recorder && recorder.state !== "inactive") recorder.stop();
-  recBtn.disabled = false;
-  stopBtn.disabled = true;
-};
+  recBtn.onclick = ()=>{
+    if(!stream){ camBtn.click(); setTimeout(()=>recBtn.click(),500); return; }
+    chunks=[]; recorder=new MediaRecorder(stream);
+    recorder.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+    recorder.onstop=()=>{
+      blob=new Blob(chunks,{type:'video/webm'});
+      vid.srcObject=null; vid.src=URL.createObjectURL(blob); vid.controls=true;
+      uploadBtn.disabled=false;
+      info.textContent="✅ Vidéo prête à envoyer.";
+    };
+    recorder.start(); recBtn.disabled=true; stopBtn.disabled=false;
+    info.textContent="⏺️ Enregistrement...";
+  };
 
-/* Envoi vers le NAS */
-uploadBtn.onclick = async ()=>{
-  if (!blob) { alert("Aucune vidéo à envoyer."); return; }
-  info.textContent = "📤 Envoi vers le NAS...";
+  stopBtn.onclick=()=>{
+    if(recorder && recorder.state!=="inactive") recorder.stop();
+    recBtn.disabled=false; stopBtn.disabled=true;
+  };
+
+  uploadBtn.onclick=async()=>{
+    if(!blob){ alert("Aucune vidéo à envoyer."); return; }
+    info.textContent="📤 Envoi vers le NAS...";
+    const form=new FormData();
+    form.append("file",blob,name+".webm");
+    form.append("name",name);
+    try{
+      const res=await fetch(SERVER_UPLOAD,{method:"POST",body:form});
+      const text=await res.text();
+      info.innerHTML=`✅ Vidéo envoyée !<br><a href="${text}" target="_blank">🎬 Voir la vidéo</a>`;
+      uploadBtn.disabled=true;
+      setTimeout(()=>location.reload(),1500);
+    }catch(e){
+      console.error(e);
+      info.textContent="❌ Erreur lors de l'envoi.";
+    }
+  };
+}
+
+/* --- Supprimer la vidéo --- */
+async function deleteVideo(name){
+  if(!confirm("Supprimer définitivement la vidéo ?")) return;
+  document.getElementById("status").textContent="🗑️ Suppression...";
   const form = new FormData();
-  form.append("file", blob, id + ".webm");
-  form.append("name", id);
-  try {
-    const res = await fetch(SERVER_UPLOAD, { method:"POST", body:form });
+  form.append("name", name);
+  try{
+    const res = await fetch(SERVER_DELETE, { method:"POST", body:form });
     const text = await res.text();
-    info.innerHTML = `✅ Vidéo envoyée !<br><a href="${text}" target="_blank">🎬 Voir la vidéo</a>`;
-    uploadBtn.disabled = true;
-  } catch (err) {
-    console.error(err);
-    info.textContent = "❌ Erreur lors de l'envoi.";
+    alert(text);
+    location.reload();
+  }catch(e){
+    alert("❌ Erreur lors de la suppression.");
   }
-};
+}
 </script>
 </body>
 </html>
