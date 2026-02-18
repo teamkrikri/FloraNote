@@ -43,14 +43,15 @@ checkIfExists(id);
 async function checkIfExists(name) {
   const videoUrl = NAS_URL + encodeURIComponent(name) + ".webm";
   try {
-    const res = await fetch(videoUrl, { method: "HEAD" });
+    const res = await fetch(videoUrl, { method: "HEAD", mode: "cors" });
     if (res.ok) {
       showVideo(videoUrl, name); // la vidéo existe 🎬
     } else {
       showRecorder(name); // pas encore enregistrée 🎥
     }
   } catch (e) {
-    document.getElementById("status").textContent = "⚠️ Erreur de connexion au NAS.";
+    document.getElementById("status").textContent = "⚠️ Impossible de contacter le NAS. Vérifie le CORS et HTTPS.";
+    console.error(e);
   }
 }
 
@@ -121,7 +122,7 @@ function showRecorder(name) {
     try{
       const res=await fetch(SERVER_UPLOAD,{method:"POST",body:form});
       const text=await res.text();
-      info.innerHTML=`✅ Vidéo envoyée !<br><a href="${text}" target="_blank">🎬 Voir la vidéo</a>`;
+      info.innerHTML=`✅ Vidéo envoyée !<br><a href="${NAS_URL+name+'.webm'}" target="_blank">🎬 Voir la vidéo</a>`;
       uploadBtn.disabled=true;
       setTimeout(()=>location.reload(),1500);
     }catch(e){
@@ -149,6 +150,3 @@ async function deleteVideo(name){
 </script>
 </body>
 </html>
-
-
-
