@@ -2,134 +2,109 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FloraNote — Enregistrement</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🌸 FloraNote — Enregistrement</title>
 <style>
-body { font-family: Arial; margin:0; padding:16px; text-align:center; background:#fff6f8; color:#333; }
-h1{margin:0 0 10px;font-size:1.8em}
-video{width:100%;max-width:480px;border-radius:12px;background:#000;margin-top:10px;}
-button{margin:8px;padding:14px 20px;border:none;border-radius:10px;font-size:16px;font-weight:600;color:#fff;}
-button.primary{background:#e91e63;}
-button.gray{background:#ccc;color:#111;}
-button.danger{background:#ff4d4d;}
-.small{font-size:13px;color:#555;margin-top:6px;}
-.container{max-width:720px;margin:0 auto;}
+body { font-family: Arial, sans-serif; margin:0; padding:16px; text-align:center; background:#fff6f8; color:#333; }
+h1 { margin:0 0 10px; font-size:1.8em; }
+video { width:100%; max-width:480px; border-radius:12px; background:#000; margin-top:10px; }
+button { margin:8px; padding:14px 20px; border:none; border-radius:10px; font-size:16px; font-weight:600; color:#fff; cursor:pointer; }
+button.primary{ background:#e91e63; }
+button.gray{ background:#ccc; color:#111; }
+.small{ font-size:13px; color:#555; margin-top:6px; }
 </style>
 </head>
+
 <body>
-<div class="container">
-  <h1>🌸 FloraNote</h1>
-  <p class="small">Enregistre un message vidéo pour le destinataire.</p>
-  <h2>ID : <span id="noteId"></span></h2>
-  <video id="vid" playsinline controls></video>
-  <div id="controls">
-    <button id="camBtn" class="primary">🎥 Activer caméra</button>
-    <button id="recBtn" class="primary">⏺️ Enregistrer</button>
-    <button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
-    <button id="saveBtn" class="primary" disabled>💾 Envoyer la vidéo</button>
-    <button id="deleteBtn" class="danger">🗑️ Supprimer la vidéo</button>
-  </div>
-  <div class="small" id="info"></div>
-  <footer class="small">© TeamKriKri — Prototype FloraNote</footer>
-</div>
+<h1>🌸 FloraNote</h1>
+<p>Enregistre ton message vidéo 💐</p>
+<h2>ID : <span id="noteId"></span></h2>
+
+<video id="vid" playsinline controls></video><br>
+<button id="camBtn" class="primary">🎥 Activer caméra</button>
+<button id="recBtn" class="primary">⏺️ Enregistrer</button>
+<button id="stopBtn" class="gray" disabled>⏹️ Arrêter</button>
+<button id="uploadBtn" class="primary" disabled>☁️ Envoyer sur NAS</button>
+
+<div id="info" class="small"></div>
+<footer class="small">© TeamKriKri — Version NAS Synology</footer>
 
 <script>
-document.addEventListener("DOMContentLoaded", function(){
-  let id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
-  if(!id){
-    const nom = prompt("💐 À qui s’adresse cette carte FloraNote ?");
-    if(nom){ id = nom.trim(); location.hash = encodeURIComponent(id); location.reload(); }
-    else { alert("Il faut un prénom pour continuer."); }
+/* 🔗 Mets ici l’adresse de ton NAS */
+const SERVER_UPLOAD = "https://dha-nas2.synology.me/upload.php";
+
+let id = location.hash ? decodeURIComponent(location.hash.slice(1)) : "";
+if (!id) {
+  id = prompt("💐 À qui s’adresse ce message ?") || "demo";
+  location.hash = encodeURIComponent(id);
+  location.reload();
+}
+document.getElementById("noteId").textContent = id;
+
+const vid = document.getElementById("vid");
+const info = document.getElementById("info");
+const camBtn = document.getElementById("camBtn");
+const recBtn = document.getElementById("recBtn");
+const stopBtn = document.getElementById("stopBtn");
+const uploadBtn = document.getElementById("uploadBtn");
+
+let stream = null, recorder = null, chunks = [], blob = null;
+
+/* Activer caméra */
+camBtn.onclick = async()=>{
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+    vid.srcObject = stream; vid.muted = true; await vid.play();
+    info.textContent = "🎥 Caméra activée ✅";
+  } catch(e) {
+    alert("Autorise la caméra et le micro !");
   }
-  document.getElementById("noteId").textContent = id || "DEMO";
+};
 
-  const vid = document.getElementById("vid");
-  const info = document.getElementById("info");
-  const camBtn = document.getElementById("camBtn");
-  const recBtn = document.getElementById("recBtn");
-  const stopBtn = document.getElementById("stopBtn");
-  const saveBtn = document.getElementById("saveBtn");
-  const deleteBtn = document.getElementById("deleteBtn");
+/* Enregistrement */
+recBtn.onclick = ()=>{
+  if (!stream) { camBtn.click(); setTimeout(()=>recBtn.click(),500); return; }
+  chunks = [];
+  recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  recorder.onstop = ()=>{
+    blob = new Blob(chunks, { type: "video/webm" });
+    vid.srcObject = null;
+    vid.src = URL.createObjectURL(blob);
+    vid.controls = true;
+    uploadBtn.disabled = false;
+    info.textContent = "✅ Vidéo prête à être envoyée.";
+  };
+  recorder.start();
+  recBtn.disabled = true;
+  stopBtn.disabled = false;
+  info.textContent = "⏺️ Enregistrement...";
+};
 
-  let stream=null, recorder=null, chunks=[];
-  let videoURL = localStorage.getItem("floranote_" + id);
+/* Stop */
+stopBtn.onclick = ()=>{
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+  recBtn.disabled = false;
+  stopBtn.disabled = true;
+};
 
-  function updateUI(){
-    if(videoURL){
-      vid.src = videoURL;
-      vid.controls = true;
-      vid.play().catch(()=>{});
-      info.textContent = "🎬 Lecture du message vidéo";
-    } else {
-      vid.src=""; vid.controls=false;
-      info.textContent = "Aucune vidéo, enregistre ton message 🎤";
-    }
+/* Envoi vers le NAS */
+uploadBtn.onclick = async ()=>{
+  if (!blob) { alert("Aucune vidéo à envoyer."); return; }
+  info.textContent = "📤 Envoi vers le NAS...";
+  const form = new FormData();
+  form.append("file", blob, id + ".webm");
+  form.append("name", id);
+  try {
+    const res = await fetch(SERVER_UPLOAD, { method:"POST", body:form });
+    const text = await res.text();
+    info.innerHTML = `✅ Vidéo envoyée !<br><a href="${text}" target="_blank">🎬 Voir la vidéo</a>`;
+    uploadBtn.disabled = true;
+  } catch (err) {
+    console.error(err);
+    info.textContent = "❌ Erreur lors de l'envoi.";
   }
-  updateUI();
-
-  /* Caméra */
-  camBtn.addEventListener("click", async ()=>{
-    try{
-      stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      vid.srcObject = stream; vid.muted = true; await vid.play();
-      info.textContent="Caméra activée ✅";
-    }catch(e){ alert("Autorise la caméra et le micro pour utiliser FloraNote."); }
-  });
-
-  /* Enregistrement */
-  recBtn.addEventListener("click", ()=>{
-    if(!stream){ camBtn.click(); setTimeout(()=>recBtn.click(),500); return; }
-    chunks = [];
-    recBtn.disabled=true; stopBtn.disabled=false;
-    recBtn.textContent="Enregistrement..."; recBtn.style.background="#aaa";
-    recorder = new MediaRecorder(stream);
-    recorder.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
-    recorder.onstop = ()=>{
-      const blob = new Blob(chunks,{type:'video/webm'});
-      vid.srcObject=null; vid.src=URL.createObjectURL(blob); vid.controls=true;
-      saveBtn.disabled=false;
-      recBtn.disabled=false; recBtn.textContent="⏺️ Enregistrer"; recBtn.style.background="#e91e63";
-      saveBtn.onclick = ()=> uploadVideo(blob);
-    };
-    recorder.start();
-  });
-
-  stopBtn.addEventListener("click", ()=>{
-    if(recorder && recorder.state!="inactive") recorder.stop();
-    stopBtn.disabled=true;
-  });
-
-  async function uploadVideo(blob){
-    info.textContent="⏳ Envoi en cours...";
-    try{
-      const form = new FormData();
-      form.append("file", blob, id+".webm");
-      const res = await fetch("https://uguu.se/api.php?d=upload-tool", {method:"POST", body:form});
-      const text = await res.text();
-      if(text.startsWith("https://")){
-        videoURL = text.trim();
-        localStorage.setItem("floranote_" + id, videoURL);
-        info.textContent = "Vidéo envoyée ✅";
-        updateUI();
-        alert("Vidéo enregistrée et prête à être lue sur n’importe quel téléphone !");
-      } else {
-        alert("Erreur upload : "+text);
-        info.textContent="Erreur d'envoi ❌";
-      }
-    }catch(e){ console.error(e); alert("Erreur réseau ou serveur."); info.textContent="Erreur d'envoi ❌"; }
-  }
-
-  /* Supprimer */
-  deleteBtn.addEventListener("click", ()=>{
-    if(confirm("Supprimer cette vidéo ?")){
-      localStorage.removeItem("floranote_" + id);
-      videoURL=null;
-      updateUI();
-      info.textContent="Vidéo supprimée. Tu peux enregistrer un nouveau message.";
-    }
-  });
-
-});
+};
 </script>
 </body>
 </html>
